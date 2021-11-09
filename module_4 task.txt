@@ -1,0 +1,51 @@
+SELECT f.flight_id,
+       f.flight_no,
+       EXTRACT(MONTH
+               FROM f.scheduled_departure) AS departure_month,
+       f.arrival_airport,
+       a.model AS aircraft,
+       sts.aircraft_seats AS seats_by_model,
+       sts.business_seats,
+       sts.economy_seats,
+       (EXTRACT(EPOCH
+                FROM f.actual_arrival) - EXTRACT(EPOCH
+                                                 FROM f.actual_departure))/60 AS flight_time_minutes,
+       count(DISTINCT tf.ticket_no) AS sold_tickets_total,
+       count(DISTINCT CASE
+                          WHEN tf.fare_conditions = 'Economy' THEN tf.ticket_no
+                      END) AS economy_tickets,
+       count(DISTINCT CASE
+                          WHEN tf.fare_conditions = 'Business' THEN tf.ticket_no
+                      END) AS business_tickets,
+       sum(tf.amount) AS total_revenue,
+       sum(CASE
+               WHEN tf.fare_conditions = 'Economy' THEN tf.amount
+           END) AS economy_revenue,
+       sum(CASE
+               WHEN tf.fare_conditions = 'Business' THEN tf.amount
+           END) AS business_revenue
+FROM dst_project.flights f
+LEFT JOIN dst_project.ticket_flights tf ON f.flight_id = tf.flight_id
+LEFT JOIN dst_project.aircrafts AS a ON f.aircraft_code = a.aircraft_code
+LEFT JOIN
+  (SELECT st.aircraft_code AS aircraft_code,
+          count(st.seat_no) AS aircraft_seats,
+          count(CASE
+                    WHEN st.fare_conditions = 'Business' THEN st.fare_conditions
+                END) AS business_seats,
+          count(CASE
+                    WHEN st.fare_conditions = 'Economy' THEN st.fare_conditions
+                END) AS economy_seats
+   FROM dst_project.seats st
+   GROUP BY st.aircraft_code) sts ON f.aircraft_code=sts.aircraft_code
+WHERE f.departure_airport = 'AAQ'
+  AND (date_trunc('month', f.scheduled_departure) in ('2017-01-01',
+                                                      '2017-02-01',
+                                                      '2017-12-01'))
+GROUP BY f.flight_id,
+         f.scheduled_arrival,
+         f.scheduled_departure,
+         a.model,
+         sts.aircraft_seats,
+         sts.business_seats,
+         sts.economy_seats
